@@ -34,7 +34,7 @@ export const createUrl = async (req, res) => {
 
     res.status(201).json({
       message: "URL created successfully",
-      shortUrl: `https://yourdomain.com/${shortCode}`,
+      shortUrl: `${req.protocol}://${req.get('host')}/${shortCode}`,
       data: newUrl,
     });
   } catch (error) {
@@ -49,33 +49,50 @@ export const redirectUrl = async (req, res) => {
   try {
     const { shortCode } = req.params;
 
+    // Find URL
     const url = await Url.findOne({ shortCode });
 
     if (!url) {
-      return res.status(404).json({ message: "URL not found" });
+      return res.status(404).json({
+        message: "URL not found",
+      });
     }
 
-    // 1. FAST CLICK COUNTER UPDATE (atomic)
-    await Url.updateOne(
-      { _id: url._id },
-      { $inc: { clicks: 1 } }
-    );
-
-    // 2. ASYNC analytics logging (do NOT block redirect)
-    ClickEvent.create({
+    // Check if same IP clicked recently
+    const existingClick = await ClickEvent.findOne({
       urlId: url._id,
       ipAddress: req.ip,
-      userAgent: req.headers["user-agent"],
-      referrer: req.headers.referer || null,
-      country: "NG", // later upgrade with geoIP
-      clickedAt: new Date(),
-    }).catch(err => console.log("Analytics error:", err));
+      clickedAt: {
+        $gte: new Date(Date.now() - 30000), // 30 seconds
+      },
+    });
 
-    // 3. IMMEDIATE REDIRECT (performance-critical)
+    // Only count unique recent click
+    if (!existingClick) {
+      // Increment clicks
+      await Url.updateOne(
+        { _id: url._id },
+        { $inc: { clicks: 1 } }
+      );
+
+      // Save analytics
+      await ClickEvent.create({
+        urlId: url._id,
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        referrer: req.headers.referer || null,
+        country: "NG",
+        clickedAt: new Date(),
+      });
+    }
+
+    // Redirect user
     return res.redirect(url.originalUrl);
 
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({
+      error: error.message,
+    });
   }
 };
 
