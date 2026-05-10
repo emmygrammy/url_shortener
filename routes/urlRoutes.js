@@ -23,4 +23,18 @@ router.put("/:shortCode", validateUrlInput, updateUrl);
 // delete url
 router.delete("/:shortCode", deleteUrl);
 
+
+console.log("URL ROUTES FILE LOADED");
+
+router.stack.forEach(r => {
+  if (r.route) {
+    console.log("ROUTE:", Object.keys(r.route.methods), r.route.path);
+  }
+});
+
+router.use((req, res, next) => {
+  console.log("🔥 REQUEST:", req.method, req.url);
+  next();
+});
+
 export default router;
