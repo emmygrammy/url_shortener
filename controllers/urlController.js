@@ -58,11 +58,31 @@ export const redirectUrl = async (req, res) => {
       });
     }
 
-    // Get user IP
-    const ip = requestIp.getClientIp(req);
+    // Get real client IP (Render-safe)
+    const ip =
+      req.headers["x-forwarded-for"]?.split(",")[0] ||
+      req.socket.remoteAddress;
 
-    // Get geo info
-    const geo = geoip.lookup(ip);
+    let geoData = {
+      country: "Unknown",
+      city: "Unknown",
+    };
+
+    // 🔥 IPStack integration
+    try {
+      const response = await fetch(
+        `https://api.ipstack.com/${ip}?access_key=${process.env.IPSTACK_KEY}`
+      );
+
+      const data = await response.json();
+
+      geoData = {
+        country: data.country_name || "Unknown",
+        city: data.city || "Unknown",
+      };
+    } catch (err) {
+      console.log("IPStack error:", err.message);
+    }
 
     // Check recent duplicate click
     const existingClick = await ClickEvent.findOne({
@@ -73,9 +93,7 @@ export const redirectUrl = async (req, res) => {
       },
     });
 
-    // Count only unique recent clicks
     if (!existingClick) {
-
       // Increment click count
       await Url.updateOne(
         { _id: url._id },
@@ -91,8 +109,8 @@ export const redirectUrl = async (req, res) => {
         userAgent: req.headers["user-agent"],
         referrer: req.headers.referer || null,
 
-        country: geo?.country || "Unknown",
-        city: geo?.city || "Unknown",
+        country: geoData.country,
+        city: geoData.city,
 
         clickedAt: new Date(),
       });

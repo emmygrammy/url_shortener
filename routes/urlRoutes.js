@@ -16,6 +16,7 @@ router.get("/:shortCode", redirectUrl);
 
 // analytics
 router.get("/:shortCode/stats", getUrlStats);
+
 // get all urls
 router.get("/", getAllUrls);
 
