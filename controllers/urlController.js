@@ -110,6 +110,31 @@ export const redirectUrl = async (req, res) => {
   }
 };
 
+// get all urls
+export const getAllUrls = async (req, res) => {
+  try {
+    const urls = await Url.find().sort({ createdAt: -1 });
+
+    if (!urls || urls.length === 0) {
+      return res.status(404).json({
+        message: "No URLs found"
+      });
+    }
+
+    return res.status(200).json({
+      message: "URLs retrieved successfully",
+      count: urls.length,
+      data: urls
+    });
+
+  } catch (error) {
+    console.error("Get all URLs error:", error);
+
+    return res.status(500).json({
+      message: "Internal server error"
+    });
+  }
+};
 
 //get url stats
 export const getUrlStats = async (req, res) => {

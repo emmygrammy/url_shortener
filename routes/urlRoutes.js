@@ -1,5 +1,5 @@
 import express from 'express';
-import { createUrl, redirectUrl, getUrlStats, updateUrl, deleteUrl } from '../controllers/urlController.js';
+import { createUrl, getAllUrls, redirectUrl, getUrlStats, updateUrl, deleteUrl } from '../controllers/urlController.js';
 import { validateUrlInput } from '../middleware/validateInput.js';
 
 
@@ -16,6 +16,8 @@ router.get("/:shortCode", redirectUrl);
 
 // analytics
 router.get("/:shortCode/stats", getUrlStats);
+// get all urls
+router.get("/", getAllUrls);
 
 // update url
 router.put("/:shortCode", validateUrlInput, updateUrl);
