@@ -7,6 +7,9 @@ dotenv.config();
 //create express app
 const app = express();
 
+//trust proxy
+app.set("trust proxy", true);
+
 //use json middleware
 app.use(express.json());
 
@@ -16,6 +19,14 @@ connectDB();
 
 //use url routes
 app.use('/v1', urlRoutes);
+
+//test ip route
+app.get('/test-ip', (req, res) => {
+  res.json({
+    ip: req.ip,
+    forwarded: req.headers['x-forwarded-for'],
+  });
+});
 
 
 

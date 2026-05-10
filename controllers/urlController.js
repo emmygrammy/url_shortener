@@ -1,8 +1,8 @@
 import Url from '../models/urlModel.js';
 import { nanoid } from "nanoid";
 import ClickEvent from "../models/analyticsModel.js";
-
-
+import requestIp from "request-ip";
+import geoip from "geoip-lite";
 
 //create url
 export const createUrl = async (req, res) => {
@@ -58,38 +58,52 @@ export const redirectUrl = async (req, res) => {
       });
     }
 
-    // Check if same IP clicked recently
+    // Get user IP
+    const ip = requestIp.getClientIp(req);
+
+    // Get geo info
+    const geo = geoip.lookup(ip);
+
+    // Check recent duplicate click
     const existingClick = await ClickEvent.findOne({
       urlId: url._id,
-      ipAddress: req.ip,
+      ipAddress: ip,
       clickedAt: {
         $gte: new Date(Date.now() - 30000), // 30 seconds
       },
     });
 
-    // Only count unique recent click
+    // Count only unique recent clicks
     if (!existingClick) {
-      // Increment clicks
+
+      // Increment click count
       await Url.updateOne(
         { _id: url._id },
-        { $inc: { clicks: 1 } }
+        {
+          $inc: { clicks: 1 },
+        }
       );
 
       // Save analytics
       await ClickEvent.create({
         urlId: url._id,
-        ipAddress: req.ip,
+        ipAddress: ip,
         userAgent: req.headers["user-agent"],
         referrer: req.headers.referer || null,
-        country: "NG",
+
+        country: geo?.country || "Unknown",
+        city: geo?.city || "Unknown",
+
         clickedAt: new Date(),
       });
     }
 
-    // Redirect user
+    // Redirect
     return res.redirect(url.originalUrl);
 
   } catch (error) {
+    console.log(error);
+
     return res.status(500).json({
       error: error.message,
     });
@@ -127,3 +141,73 @@ export const getUrlStats = async (req, res) => {
   }
 };
 
+
+// update url
+export const updateUrl = async (req, res) => {
+  try {
+    const { shortCode } = req.params;
+    const { originalUrl } = req.body;
+
+    // Find URL
+    const url = await Url.findOne({ shortCode });
+
+    if (!url) {
+      return res.status(404).json({
+        message: "URL not found",
+      });
+    }
+
+    // Update URL
+    url.originalUrl = originalUrl || url.originalUrl;
+
+    await url.save();
+
+    return res.status(200).json({
+      message: "URL updated successfully",
+      data: url,
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      error: error.message,
+    });
+  }
+};
+
+// delete url
+export const deleteUrl = async (req, res) => {
+  try {
+    const { shortCode } = req.params;
+
+    // 1. Validate input FIRST
+    if (!shortCode || shortCode.trim() === "") {
+      return res.status(400).json({
+        message: "shortCode is required",
+      });
+    }
+
+    // 2. Find URL
+    const url = await Url.findOne({ shortCode });
+
+    if (!url) {
+      return res.status(404).json({
+        message: "URL not found",
+      });
+    }
+
+    // 3. Delete analytics first (cleanup)
+    await ClickEvent.deleteMany({ urlId: url._id });
+
+    // 4. Delete URL
+    await Url.findByIdAndDelete(url._id);
+
+    return res.status(200).json({
+      message: "URL deleted successfully",
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      error: error.message,
+    });
+  }
+};
